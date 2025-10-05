@@ -314,3 +314,51 @@ class AnalyticsPipeline:
             'data_found': extracted_data is not None,
             'chart_created': chart is not None
         }
+    
+    def run_query(
+        self, 
+        prompt: str, 
+        temperature: float = 0.7, 
+        max_tokens: int = 800,
+        chart_type: str = "auto"
+    ) -> Dict[str, Any]:
+        """
+        Run complete analytics pipeline: query -> extract -> visualize.
+        
+        This method wraps process_query() and returns a structure compatible
+        with the production version for use with streamlit_dashboard.py.
+        
+        Args:
+            prompt: Query prompt
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens
+            chart_type: Type of chart to generate
+            
+        Returns:
+            Dictionary with response, extracted data, and chart
+        """
+        # Query the LLM
+        response = self.client.query(prompt, temperature, max_tokens)
+        
+        if not response['success']:
+            return response
+        
+        # Extract JSON from response
+        extracted_data = self.extract_json(response['raw_text'])
+        
+        result = {
+            'success': True,
+            'response': response,
+            'extracted_data': extracted_data,
+            'chart': None
+        }
+        
+        # Generate chart if data was extracted
+        if extracted_data:
+            try:
+                chart = self.create_chart(extracted_data, chart_type)
+                result['chart'] = chart
+            except Exception as e:
+                result['chart_error'] = str(e)
+        
+        return result

@@ -54,6 +54,22 @@ A production-ready Python application for querying Azure LLM endpoints and autom
    # IMPORTANT: Never commit config.py to version control!
    ```
 
+## SSL Certificate Issues (Development) 🔒
+
+If you encounter SSL certificate verification errors when connecting to your Azure endpoint, a development version with SSL bypass is available:
+
+⚠️ **WARNING**: This should **ONLY** be used in development environments. **NEVER** use this in production!
+
+The repository includes `azure_llm_analytics_dev.py` which has SSL verification disabled. The dashboard is currently configured to use this version for development purposes.
+
+**Current Configuration**: The `streamlit_dashboard.py` imports from `azure_llm_analytics_dev` (development version with SSL bypass).
+
+To switch back to the production version with SSL verification enabled:
+1. Edit `streamlit_dashboard.py`
+2. Change line 8 from `from azure_llm_analytics_dev import` to `from azure_llm_analytics import`
+
+For detailed information about SSL bypass, security considerations, and troubleshooting, see [SSL_BYPASS_README.md](SSL_BYPASS_README.md).
+
 ## Usage 📖
 
 ### Running the Streamlit Dashboard
@@ -252,6 +268,15 @@ DEFAULT_CHART_TYPE = "auto"
 
 ## Troubleshooting 🔍
 
+### SSL Certificate Verification Errors
+
+**Problem**: SSL certificate verification errors when connecting to Azure endpoint
+**Solution**: 
+- The application is currently using `azure_llm_analytics_dev` which has SSL verification disabled for development
+- This is intended for development purposes only
+- See [SSL_BYPASS_README.md](SSL_BYPASS_README.md) for detailed information
+- For production, ensure your Azure endpoint has a valid SSL certificate and use `azure_llm_analytics` instead
+
 ### Connection Issues
 
 **Problem**: "Connection failed" error
@@ -259,6 +284,7 @@ DEFAULT_CHART_TYPE = "auto"
 - Verify your API key is correct
 - Check the endpoint URL is accessible
 - Ensure you have internet connectivity
+- Check for SSL certificate issues (see above)
 
 ### JSON Extraction Issues
 
