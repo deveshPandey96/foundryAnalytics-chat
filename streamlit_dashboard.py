@@ -5,7 +5,7 @@ Interactive web interface for querying Azure LLM and visualizing responses.
 """
 
 import streamlit as st
-from azure_llm_analytics import AzureLLMClient, AnalyticsPipeline
+from azure_llm_analytics_dev import AzureLLMClient, AnalyticsPipeline
 import json
 
 
