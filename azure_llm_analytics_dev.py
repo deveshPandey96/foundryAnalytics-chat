@@ -65,19 +65,8 @@ class AzureLLMClient:
         """
         # Prepare the request data
         data = {
-            "input_data": {
-                "input_string": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                "parameters": {
-                    "temperature": temperature,
-                    "max_new_tokens": max_tokens,
-                    "do_sample": True
-                }
-            }
+            "chat_input": prompt,
+            "chat_history": []
         }
         
         # Convert to JSON and encode
