@@ -95,7 +95,7 @@ class AzureLLMClient:
                 return {
                     'success': True,
                     'response': result,
-                    'raw_text': str(result)
+                    'raw_text': result.get('chat_output', str(result))
                 }
                 
         except urllib.error.HTTPError as e:
