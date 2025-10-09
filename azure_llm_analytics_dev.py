@@ -194,7 +194,7 @@ class AnalyticsPipeline:
         
         Args:
             data: List of dictionaries containing the data
-            chart_type: Type of chart ("auto", "bar", "pie")
+            chart_type: Type of chart ("auto", "bar", "pie", "line", "scatter")
             
         Returns:
             Plotly figure object or None if creation fails
@@ -229,6 +229,29 @@ class AnalyticsPipeline:
                     values=y_col, 
                     names=x_col,
                     title=f"{y_col.title()} by {x_col.title()}"
+                )
+            elif chart_type == "line":
+                fig = px.line(
+                    df, 
+                    x=x_col, 
+                    y=y_col,
+                    title=f"{y_col.title()} by {x_col.title()}",
+                    markers=True
+                )
+                fig.update_layout(
+                    xaxis_title=x_col.title(),
+                    yaxis_title=y_col.title()
+                )
+            elif chart_type == "scatter":
+                fig = px.scatter(
+                    df, 
+                    x=x_col, 
+                    y=y_col,
+                    title=f"{y_col.title()} vs {x_col.title()}"
+                )
+                fig.update_layout(
+                    xaxis_title=x_col.title(),
+                    yaxis_title=y_col.title()
                 )
             else:  # bar chart
                 fig = px.bar(

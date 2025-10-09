@@ -17,4 +17,5 @@ DEFAULT_TEMPERATURE = 0.7
 DEFAULT_MAX_TOKENS = 800
 
 # Chart Configuration
-DEFAULT_CHART_TYPE = "auto"  # Options: "auto", "bar", "pie"
+# Note: Chart type can be changed dynamically in the UI
+DEFAULT_CHART_TYPE = "bar"  # Options: "bar", "pie", "line", "scatter"
