@@ -298,13 +298,88 @@ class ChartGenerator:
         return fig
     
     @staticmethod
+    def create_line_chart(data: List[Dict[str, Any]], x_key: str, y_key: str, title: str = "Line Chart") -> go.Figure:
+        """
+        Create a line chart from data.
+        
+        Args:
+            data: List of dictionaries containing data
+            x_key: Key for x-axis values
+            y_key: Key for y-axis values
+            title: Chart title
+            
+        Returns:
+            Plotly figure object
+        """
+        df = pd.DataFrame(data)
+        
+        fig = go.Figure(data=[
+            go.Scatter(
+                x=df[x_key],
+                y=df[y_key],
+                mode='lines+markers',
+                line=dict(color='rgb(55, 83, 109)', width=2),
+                marker=dict(size=8)
+            )
+        ])
+        
+        fig.update_layout(
+            title=title,
+            xaxis_title=x_key.capitalize(),
+            yaxis_title=y_key.capitalize(),
+            template='plotly_white',
+            showlegend=False
+        )
+        
+        return fig
+    
+    @staticmethod
+    def create_scatter_chart(data: List[Dict[str, Any]], x_key: str, y_key: str, title: str = "Scatter Plot") -> go.Figure:
+        """
+        Create a scatter plot from data.
+        
+        Args:
+            data: List of dictionaries containing data
+            x_key: Key for x-axis values
+            y_key: Key for y-axis values
+            title: Chart title
+            
+        Returns:
+            Plotly figure object
+        """
+        df = pd.DataFrame(data)
+        
+        fig = go.Figure(data=[
+            go.Scatter(
+                x=df[x_key],
+                y=df[y_key],
+                mode='markers',
+                marker=dict(
+                    size=12,
+                    color='rgb(55, 83, 109)',
+                    line=dict(width=1, color='white')
+                )
+            )
+        ])
+        
+        fig.update_layout(
+            title=title,
+            xaxis_title=x_key.capitalize(),
+            yaxis_title=y_key.capitalize(),
+            template='plotly_white',
+            showlegend=False
+        )
+        
+        return fig
+    
+    @staticmethod
     def auto_generate_chart(data: List[Dict[str, Any]], chart_type: str = "auto") -> Optional[go.Figure]:
         """
         Automatically generate an appropriate chart based on data structure.
         
         Args:
             data: List of dictionaries containing data
-            chart_type: Type of chart ('auto', 'bar', 'pie')
+            chart_type: Type of chart ('auto', 'bar', 'pie', 'line', 'scatter')
             
         Returns:
             Plotly figure object or None if unable to generate
@@ -352,6 +427,16 @@ class ChartGenerator:
             return ChartGenerator.create_pie_chart(
                 data, cat_col, num_col,
                 title=f"{num_col.capitalize()} Distribution"
+            )
+        elif chart_type == "line":
+            return ChartGenerator.create_line_chart(
+                data, cat_col, num_col,
+                title=f"{num_col.capitalize()} by {cat_col.capitalize()}"
+            )
+        elif chart_type == "scatter":
+            return ChartGenerator.create_scatter_chart(
+                data, cat_col, num_col,
+                title=f"{num_col.capitalize()} vs {cat_col.capitalize()}"
             )
         
         return None

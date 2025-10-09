@@ -8,6 +8,12 @@ import streamlit as st
 from azure_llm_analytics_dev import AzureLLMClient, AnalyticsPipeline
 import json
 
+# Load configuration from config file
+try:
+    from config import AZURE_ENDPOINT_URL, API_KEY, DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS
+except ImportError:
+    st.error("⚠️ Configuration file not found! Please create config.py from config.example.py")
+    st.stop()
 
 # Page configuration
 st.set_page_config(
@@ -19,82 +25,46 @@ st.set_page_config(
 # Title and description
 st.title("📊 Azure LLM Analytics Dashboard")
 st.markdown("""
-This dashboard allows you to query Azure LLM endpoints and automatically visualize JSON responses.
-Perfect for comparative analysis and data exploration.
+Professional analytics dashboard for querying Azure LLM and visualizing responses.
 """)
 
-# Sidebar for configuration
-st.sidebar.header("⚙️ Configuration")
-
-# Endpoint URL
-endpoint_url = st.sidebar.text_input(
-    "Azure Endpoint URL",
-    value="https://endpointNew-29sep-bdtrm.eastus2.inference.ml.azure.com/score",
-    help="Enter your Azure LLM endpoint URL"
-)
-
-# API Key
-api_key = st.sidebar.text_input(
-    "API Key",
-    type="password",
-    help="Enter your API key for authentication"
-)
-
-# Test connection button
-if st.sidebar.button("🔌 Test Connection"):
-    if not api_key:
-        st.sidebar.error("Please enter an API key first!")
-    else:
-        with st.sidebar.spinner("Testing connection..."):
-            client = AzureLLMClient(endpoint_url, api_key)
-            success, message = client.test_connection()
-            if success:
-                st.sidebar.success(message)
-            else:
-                st.sidebar.error(message)
-
-st.sidebar.markdown("---")
-
-# Parameters
-st.sidebar.header("🎛️ Parameters")
-temperature = st.sidebar.slider(
-    "Temperature",
-    min_value=0.0,
-    max_value=1.0,
-    value=0.7,
-    step=0.1,
-    help="Controls randomness in responses. Higher values = more creative"
-)
-
-max_tokens = st.sidebar.slider(
-    "Max Tokens",
-    min_value=100,
-    max_value=2000,
-    value=800,
-    step=100,
-    help="Maximum length of the response"
-)
-
-chart_type = st.sidebar.selectbox(
-    "Chart Type",
-    options=["auto", "bar", "pie"],
-    help="Type of chart to generate from data"
-)
-
-st.sidebar.markdown("---")
+# Sidebar for tips
 st.sidebar.markdown("### 💡 Tips")
 st.sidebar.markdown("""
 - Always request JSON format in your queries
 - Specify the exact keys you want in the response
 - Use comparative queries for better visualizations
+- Try different graph types to visualize your data
 """)
 
-# Main content area
-col1, col2 = st.columns([2, 1])
+# Main content area - Chat Interface
+st.subheader("💬 Query Input")
 
-with col2:
-    st.subheader("📝 Example Queries")
-    
+# Get query from session state if available
+default_query = st.session_state.get('selected_query', '')
+
+query = st.text_area(
+    "Enter your query:",
+    value=default_query,
+    height=120,
+    placeholder="Example: Compare the number of tasks in phase 3 and phase 6 of J&K Bank. Return the result in JSON format with 'phase' and 'tasks' keys.",
+    help="Enter a query that requests data in JSON format for best results"
+)
+
+# Clear the selected query after use
+if 'selected_query' in st.session_state:
+    del st.session_state.selected_query
+
+col_btn1, col_btn2 = st.columns([1, 5])
+
+with col_btn1:
+    submit_button = st.button("🚀 Submit", type="primary", use_container_width=True)
+
+with col_btn2:
+    clear_button = st.button("🗑️ Clear", use_container_width=True)
+
+# Example queries section
+with st.expander("📝 Example Queries"):
     example_queries = [
         "Compare the number of tasks in phase 3 and phase 6 of J&K Bank. Return the result in JSON format with 'phase' and 'tasks' keys.",
         "Compare number of use cases of CSB bank and J&K Bank. Return the result in JSON format with 'customer' and 'use cases' keys.",
@@ -102,38 +72,12 @@ with col2:
         "Compare the number of employees in Engineering, Sales, and Marketing departments. Return as JSON with 'department' and 'employees' keys.",
     ]
     
-    for i, example in enumerate(example_queries, 1):
-        if st.button(f"Example {i}", key=f"example_{i}", use_container_width=True):
-            st.session_state.selected_query = example
-    
-    st.markdown("---")
-    st.markdown("**Click an example to load it into the query box**")
-
-with col1:
-    st.subheader("🔍 Query Input")
-    
-    # Get query from session state if available
-    default_query = st.session_state.get('selected_query', '')
-    
-    query = st.text_area(
-        "Enter your query:",
-        value=default_query,
-        height=150,
-        placeholder="Example: Compare the number of tasks in phase 3 and phase 6 of J&K Bank. Return the result in JSON format with 'phase' and 'tasks' keys.",
-        help="Enter a query that requests data in JSON format for best results"
-    )
-    
-    # Clear the selected query after use
-    if 'selected_query' in st.session_state:
-        del st.session_state.selected_query
-    
-    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 4])
-    
-    with col_btn1:
-        submit_button = st.button("🚀 Submit Query", type="primary", use_container_width=True)
-    
-    with col_btn2:
-        clear_button = st.button("🗑️ Clear", use_container_width=True)
+    cols = st.columns(2)
+    for i, example in enumerate(example_queries):
+        with cols[i % 2]:
+            if st.button(f"Example {i+1}", key=f"example_{i}", use_container_width=True):
+                st.session_state.selected_query = example
+                st.rerun()
 
 # Handle clear button
 if clear_button:
@@ -141,77 +85,122 @@ if clear_button:
 
 # Handle submit button
 if submit_button:
-    if not api_key:
-        st.error("⚠️ Please enter an API key in the sidebar!")
-    elif not query:
+    if not query:
         st.error("⚠️ Please enter a query!")
     else:
-        # Create client and pipeline
-        client = AzureLLMClient(endpoint_url, api_key)
+        # Create client and pipeline using config values
+        client = AzureLLMClient(AZURE_ENDPOINT_URL, API_KEY)
         pipeline = AnalyticsPipeline(client)
         
-        # Run query
+        # Store initial chart type in session state
+        if 'chart_type' not in st.session_state:
+            st.session_state.chart_type = "bar"
+        
+        # Run query with config values (initial chart type doesn't matter, we'll regenerate)
         with st.spinner("🔄 Processing your query..."):
             result = pipeline.run_query(
                 query,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                chart_type=chart_type
+                temperature=DEFAULT_TEMPERATURE,
+                max_tokens=DEFAULT_MAX_TOKENS,
+                chart_type=st.session_state.chart_type
             )
         
-        if not result['success']:
-            st.error(f"❌ Error: {result.get('error', 'Unknown error')}")
-        else:
-            st.success("✅ Query completed successfully!")
+        # Store result in session state for chart type switching
+        st.session_state.result = result
+        st.session_state.query_submitted = True
+
+# Display results if available
+if st.session_state.get('query_submitted', False) and 'result' in st.session_state:
+    result = st.session_state.result
+    
+    if not result['success']:
+        st.error(f"❌ Error: {result.get('error', 'Unknown error')}")
+    else:
+        st.success("✅ Query completed successfully!")
+        
+        # Separator
+        st.markdown("---")
+        
+        # Create tabs for Text Output and Graph Output
+        tab1, tab2 = st.tabs(["📝 Text Output", "📊 Graph Output"])
+        
+        with tab1:
+            st.subheader("Response")
             
-            # Create tabs for different views
-            tab1, tab2, tab3 = st.tabs(["📊 Visualization", "📋 Data", "🔍 Raw Response"])
-            
-            with tab1:
-                st.subheader("Visualization")
-                
-                if result.get('chart'):
-                    st.plotly_chart(result['chart'], use_container_width=True)
-                elif result.get('extracted_data'):
-                    st.warning("⚠️ Data was extracted but visualization failed. Check the Data tab.")
-                else:
-                    st.info("ℹ️ No structured data found in the response. The LLM may not have returned JSON format.")
-                    st.markdown("**Tip:** Try rephrasing your query to explicitly request JSON format.")
-            
-            with tab2:
-                st.subheader("Extracted Data")
-                
-                if result.get('extracted_data'):
-                    # Display as table
-                    import pandas as pd
-                    df = pd.DataFrame(result['extracted_data'])
-                    st.dataframe(df, use_container_width=True)
-                    
-                    # Display as JSON
-                    st.markdown("**JSON Format:**")
-                    st.json(result['extracted_data'])
-                    
-                    # Download button
-                    json_str = json.dumps(result['extracted_data'], indent=2)
-                    st.download_button(
-                        label="📥 Download JSON",
-                        data=json_str,
-                        file_name="extracted_data.json",
-                        mime="application/json"
-                    )
-                else:
-                    st.info("ℹ️ No structured data was extracted from the response.")
-            
-            with tab3:
-                st.subheader("Raw Response")
-                
+            # Show raw response text
+            if result.get('response'):
                 response_data = result['response'].get('response', {})
-                st.json(response_data)
+                
+                # Display as formatted JSON if available
+                if response_data:
+                    st.json(response_data)
                 
                 # Show raw text if available
                 if result['response'].get('raw_text'):
-                    with st.expander("📄 View as text"):
+                    with st.expander("📄 View as plain text"):
                         st.text(result['response']['raw_text'])
+            
+            # Show extracted data
+            if result.get('extracted_data'):
+                st.markdown("---")
+                st.subheader("Extracted Data")
+                
+                # Display as table
+                import pandas as pd
+                df = pd.DataFrame(result['extracted_data'])
+                st.dataframe(df, use_container_width=True)
+                
+                # Display as JSON
+                st.markdown("**JSON Format:**")
+                st.json(result['extracted_data'])
+                
+                # Download button
+                json_str = json.dumps(result['extracted_data'], indent=2)
+                st.download_button(
+                    label="📥 Download JSON",
+                    data=json_str,
+                    file_name="extracted_data.json",
+                    mime="application/json"
+                )
+            else:
+                st.info("ℹ️ No structured data was extracted from the response.")
+        
+        with tab2:
+            st.subheader("Visualization")
+            
+            if result.get('extracted_data'):
+                # Chart type selector in the Graph Output tab
+                col1, col2 = st.columns([1, 3])
+                
+                with col1:
+                    selected_chart_type = st.selectbox(
+                        "Select Graph Type",
+                        options=["bar", "pie", "line", "scatter"],
+                        index=["bar", "pie", "line", "scatter"].index(st.session_state.get('chart_type', 'bar')),
+                        key="chart_type_selector"
+                    )
+                
+                # Regenerate chart if type changed
+                if selected_chart_type != st.session_state.get('chart_type', 'bar'):
+                    st.session_state.chart_type = selected_chart_type
+                    # Recreate chart with new type
+                    client = AzureLLMClient(AZURE_ENDPOINT_URL, API_KEY)
+                    pipeline = AnalyticsPipeline(client)
+                    try:
+                        new_chart = pipeline.create_chart(result['extracted_data'], selected_chart_type)
+                        result['chart'] = new_chart
+                        st.session_state.result = result
+                    except Exception as e:
+                        st.error(f"Error creating chart: {str(e)}")
+                
+                # Display chart
+                if result.get('chart'):
+                    st.plotly_chart(result['chart'], use_container_width=True)
+                else:
+                    st.warning("⚠️ Unable to generate visualization. Please check your data format.")
+            else:
+                st.info("ℹ️ No structured data found in the response. The LLM may not have returned JSON format.")
+                st.markdown("**Tip:** Try rephrasing your query to explicitly request JSON format.")
 
 # Footer
 st.markdown("---")
