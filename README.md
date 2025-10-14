@@ -2,12 +2,28 @@
 
 A production-ready Python application for querying Azure LLM endpoints and automatically visualizing JSON responses. Perfect for comparative analysis, data exploration, and generating interactive charts from natural language queries.
 
+## 🎨 Chat-like UI
+
+The dashboard now features a modern, conversational interface similar to ChatGPT and GitHub Copilot:
+
+![Chat UI Demo](https://github.com/user-attachments/assets/042876aa-24c0-4f20-80b0-d18bee3a6733)
+
+### Key UI Improvements:
+- 💬 **Conversation-style layout** with clear user/assistant messages
+- 📝 **Natural language summaries** instead of raw JSON display
+- 📊 **Inline tabs** for detailed data and visualizations
+- 🔄 **Persistent chat history** throughout your session
+- 🎯 **Clean, minimal input field** for easy query entry
+
 ## Features ✨
 
+- **Chat-like Interface**: Modern conversational UI similar to ChatGPT/Copilot for natural interactions
+- **Conversation History**: Keep track of all your queries and responses in one place
+- **Smart Text Rendering**: Automatically converts JSON responses to readable text summaries
 - **Azure LLM Integration**: Connect to Azure LLM endpoints with Bearer token authentication
 - **Automatic JSON Extraction**: Intelligently extracts structured data from LLM responses
-- **Interactive Visualizations**: Generate bar charts and pie charts using Plotly
-- **Streamlit Dashboard**: User-friendly web interface for queries and visualization
+- **Interactive Visualizations**: Generate bar charts, pie charts, line charts, and scatter plots using Plotly
+- **Dual-View Tabs**: View detailed data and graphs side-by-side within each response
 - **Configuration Management**: Easy setup with configuration templates
 - **Example Queries**: Pre-loaded analytical queries for quick start
 - **Error Handling**: Robust error handling and user feedback
@@ -84,25 +100,33 @@ This will launch the dashboard in your default web browser (typically at `http:/
 
 #### Dashboard Features:
 
-1. **Configuration Sidebar**
-   - Enter your Azure endpoint URL
-   - Provide your API key
-   - Test connection with a single click
+1. **Chat-like Conversation View** 🆕
+   - View all your previous queries and responses in a conversation format
+   - User messages and assistant responses clearly distinguished
+   - Scroll through your complete conversation history
+   - Each response shows a natural language summary of the data
 
-2. **Parameter Controls**
-   - Temperature: Controls response randomness (0.0 - 1.0)
-   - Max Tokens: Maximum response length (100 - 2000)
-   - Chart Type: Choose between auto, bar, or pie charts
+2. **Smart Response Rendering** 🆕
+   - JSON responses automatically converted to readable text
+   - Bullet-point summaries with key insights
+   - Total calculations displayed when applicable
+   - Clean, chat-like presentation similar to ChatGPT
 
-3. **Query Interface**
-   - Text area for entering queries
-   - Pre-loaded example queries
-   - Submit and clear buttons
+3. **Interactive Tabs for Each Response** 🆕
+   - **Detailed Response Tab**: View extracted data in table format with download options
+   - **Graph View Tab**: Interactive Plotly charts with dynamic chart type selection
+   - Switch between bar, pie, line, and scatter charts on the fly
 
-4. **Results Display**
-   - **Visualization Tab**: Interactive Plotly charts
-   - **Data Tab**: Extracted JSON data in table and JSON format
-   - **Raw Response Tab**: Complete API response
+4. **Query Input**
+   - Clean, single-line input field for queries
+   - Pre-loaded example queries for quick start
+   - Submit button to send queries
+   - Clear Chat button to start a new conversation
+
+5. **Tips Sidebar**
+   - Helpful tips for writing effective queries
+   - Best practices for getting JSON responses
+   - Visualization recommendations
 
 ### Using the Python API
 
