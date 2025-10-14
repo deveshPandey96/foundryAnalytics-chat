@@ -7,6 +7,7 @@ Interactive web interface for querying Azure LLM and visualizing responses.
 import streamlit as st
 from azure_llm_analytics_dev import AzureLLMClient, AnalyticsPipeline
 import json
+import re
 
 # Load configuration from config file
 try:
@@ -21,6 +22,44 @@ st.set_page_config(
     page_icon="📊",
     layout="wide"
 )
+
+# Initialize session state for chat history
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+
+# Custom CSS for chat-like interface
+st.markdown("""
+<style>
+    /* Chat message styling */
+    .stChatMessage {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* Main container */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+    
+    /* Input box styling */
+    .stTextInput > div > div > input {
+        border-radius: 1.5rem;
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        border-radius: 1.5rem;
+    }
+    
+    /* Make the conversation section scrollable */
+    .conversation-container {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Title and description
 st.title("📊 Azure LLM Analytics Dashboard")
@@ -37,31 +76,100 @@ st.sidebar.markdown("""
 - Try different graph types to visualize your data
 """)
 
+# Display chat history first
+if st.session_state.chat_history:
+    st.markdown("### 💬 Conversation")
+    for i, chat in enumerate(st.session_state.chat_history):
+        # User message
+        with st.chat_message("user"):
+            st.markdown(chat['query'])
+        
+        # Assistant message
+        with st.chat_message("assistant"):
+            # Display text response
+            if chat.get('text_response'):
+                st.markdown(chat['text_response'])
+            
+            # Display tabs for detailed view
+            if chat.get('has_data'):
+                tab1, tab2 = st.tabs(["📝 Detailed Response", "📊 Graph View"])
+                
+                with tab1:
+                    # Show extracted data
+                    if chat.get('extracted_data'):
+                        st.markdown("**Extracted Data:**")
+                        import pandas as pd
+                        df = pd.DataFrame(chat['extracted_data'])
+                        st.dataframe(df, use_container_width=True)
+                        
+                        # Download button
+                        json_str = json.dumps(chat['extracted_data'], indent=2)
+                        st.download_button(
+                            label="📥 Download JSON",
+                            data=json_str,
+                            file_name=f"data_{i}.json",
+                            mime="application/json",
+                            key=f"download_{i}"
+                        )
+                
+                with tab2:
+                    if chat.get('chart'):
+                        # Chart type selector
+                        col1, col2 = st.columns([1, 3])
+                        with col1:
+                            selected_chart_type = st.selectbox(
+                                "Select Graph Type",
+                                options=["bar", "pie", "line", "scatter"],
+                                index=["bar", "pie", "line", "scatter"].index(chat.get('chart_type', 'bar')),
+                                key=f"chart_type_{i}"
+                            )
+                        
+                        # Regenerate chart if type changed
+                        if selected_chart_type != chat.get('chart_type', 'bar'):
+                            client = AzureLLMClient(AZURE_ENDPOINT_URL, API_KEY)
+                            pipeline = AnalyticsPipeline(client)
+                            try:
+                                new_chart = pipeline.create_chart(chat['extracted_data'], selected_chart_type)
+                                st.session_state.chat_history[i]['chart'] = new_chart
+                                st.session_state.chat_history[i]['chart_type'] = selected_chart_type
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error creating chart: {str(e)}")
+                        
+                        st.plotly_chart(chat['chart'], use_container_width=True)
+                    else:
+                        st.info("ℹ️ No visualization available for this response.")
+
+    st.markdown("---")
+
 # Main content area - Chat Interface
-st.subheader("💬 Query Input")
+st.subheader("💬 Ask a Question")
 
 # Get query from session state if available
 default_query = st.session_state.get('selected_query', '')
 
-query = st.text_area(
+query = st.text_input(
     "Enter your query:",
     value=default_query,
-    height=120,
-    placeholder="Example: Compare the number of tasks in phase 3 and phase 6 of J&K Bank. Return the result in JSON format with 'phase' and 'tasks' keys.",
-    help="Enter a query that requests data in JSON format for best results"
+    placeholder="Example: Compare the number of tasks in phase 3 and phase 6 of J&K Bank...",
+    help="Enter a query that requests data in JSON format for best results",
+    key="query_input"
 )
 
 # Clear the selected query after use
 if 'selected_query' in st.session_state:
     del st.session_state.selected_query
 
-col_btn1, col_btn2 = st.columns([1, 5])
+col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 4])
 
 with col_btn1:
     submit_button = st.button("🚀 Submit", type="primary", use_container_width=True)
 
 with col_btn2:
-    clear_button = st.button("🗑️ Clear", use_container_width=True)
+    clear_chat_button = st.button("🗑️ Clear Chat", use_container_width=True)
+
+with col_btn3:
+    st.write("")  # Empty space
 
 # Example queries section
 with st.expander("📝 Example Queries"):
@@ -79,9 +187,79 @@ with st.expander("📝 Example Queries"):
                 st.session_state.selected_query = example
                 st.rerun()
 
-# Handle clear button
-if clear_button:
+# Handle clear chat button
+if clear_chat_button:
+    st.session_state.chat_history = []
+    if 'query_submitted' in st.session_state:
+        del st.session_state.query_submitted
+    if 'result' in st.session_state:
+        del st.session_state.result
     st.rerun()
+
+# Helper function to extract readable text from LLM response
+def extract_readable_text(result):
+    """Extract human-readable text from LLM response, converting JSON to narrative format."""
+    raw_text = result.get('response', {}).get('raw_text', '')
+    
+    # If we have extracted data, create a narrative summary
+    if result.get('extracted_data'):
+        data = result['extracted_data']
+        
+        # Try to create a natural language summary
+        try:
+            import pandas as pd
+            df = pd.DataFrame(data)
+            
+            # Get column names
+            text_cols = df.select_dtypes(include=['object']).columns.tolist()
+            numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+            
+            if text_cols and numeric_cols:
+                x_col = text_cols[0]
+                y_col = numeric_cols[0]
+                
+                # Build a summary
+                summary = f"Here's the data for {y_col} across different {x_col}:\n\n"
+                for _, row in df.iterrows():
+                    summary += f"• **{row[x_col]}**: {row[y_col]}\n"
+                
+                # Add total if numeric
+                if len(df) > 1:
+                    total = df[y_col].sum()
+                    summary += f"\n**Total {y_col}**: {total}"
+                
+                return summary
+        except:
+            pass
+    
+    # If no extracted data or failed to create summary, clean up the raw text
+    # Remove JSON blocks and formatting
+    text = re.sub(r'```json\s*', '', raw_text)
+    text = re.sub(r'```\s*', '', text)
+    
+    # Try to extract just the explanatory text (non-JSON part)
+    lines = text.split('\n')
+    readable_lines = []
+    in_json = False
+    
+    for line in lines:
+        stripped = line.strip()
+        # Skip JSON array/object markers
+        if stripped.startswith('[') or stripped.startswith('{'):
+            in_json = True
+        if stripped.endswith(']') or stripped.endswith('}'):
+            in_json = False
+            continue
+        
+        if not in_json and stripped and not stripped.startswith('"'):
+            # This looks like explanatory text
+            readable_lines.append(line)
+    
+    if readable_lines:
+        return '\n'.join(readable_lines)
+    
+    # Fallback: return raw text
+    return raw_text
 
 # Handle submit button
 if submit_button:
@@ -92,115 +270,37 @@ if submit_button:
         client = AzureLLMClient(AZURE_ENDPOINT_URL, API_KEY)
         pipeline = AnalyticsPipeline(client)
         
-        # Store initial chart type in session state
-        if 'chart_type' not in st.session_state:
-            st.session_state.chart_type = "bar"
-        
-        # Run query with config values (initial chart type doesn't matter, we'll regenerate)
+        # Run query with config values
         with st.spinner("🔄 Processing your query..."):
             result = pipeline.run_query(
                 query,
                 temperature=DEFAULT_TEMPERATURE,
                 max_tokens=DEFAULT_MAX_TOKENS,
-                chart_type=st.session_state.chart_type
+                chart_type="bar"  # Default chart type
             )
         
-        # Store result in session state for chart type switching
-        st.session_state.result = result
-        st.session_state.query_submitted = True
-
-# Display results if available
-if st.session_state.get('query_submitted', False) and 'result' in st.session_state:
-    result = st.session_state.result
-    
-    if not result['success']:
-        st.error(f"❌ Error: {result.get('error', 'Unknown error')}")
-    else:
-        st.success("✅ Query completed successfully!")
-        
-        # Separator
-        st.markdown("---")
-        
-        # Create tabs for Text Output and Graph Output
-        tab1, tab2 = st.tabs(["📝 Text Output", "📊 Graph Output"])
-        
-        with tab1:
-            st.subheader("Response")
+        if not result['success']:
+            st.error(f"❌ Error: {result.get('error', 'Unknown error')}")
+        else:
+            # Extract readable text from response
+            text_response = extract_readable_text(result)
             
-            # Show raw response text
-            if result.get('response'):
-                response_data = result['response'].get('response', {})
-                
-                # Display as formatted JSON if available
-                if response_data:
-                    st.json(response_data)
-                
-                # Show raw text if available
-                if result['response'].get('raw_text'):
-                    with st.expander("📄 View as plain text"):
-                        st.text(result['response']['raw_text'])
+            # Create chat entry
+            chat_entry = {
+                'query': query,
+                'text_response': text_response,
+                'extracted_data': result.get('extracted_data'),
+                'chart': result.get('chart'),
+                'chart_type': 'bar',
+                'has_data': result.get('extracted_data') is not None,
+                'raw_response': result.get('response', {}).get('raw_text', '')
+            }
             
-            # Show extracted data
-            if result.get('extracted_data'):
-                st.markdown("---")
-                st.subheader("Extracted Data")
-                
-                # Display as table
-                import pandas as pd
-                df = pd.DataFrame(result['extracted_data'])
-                st.dataframe(df, use_container_width=True)
-                
-                # Display as JSON
-                st.markdown("**JSON Format:**")
-                st.json(result['extracted_data'])
-                
-                # Download button
-                json_str = json.dumps(result['extracted_data'], indent=2)
-                st.download_button(
-                    label="📥 Download JSON",
-                    data=json_str,
-                    file_name="extracted_data.json",
-                    mime="application/json"
-                )
-            else:
-                st.info("ℹ️ No structured data was extracted from the response.")
-        
-        with tab2:
-            st.subheader("Visualization")
+            # Add to chat history
+            st.session_state.chat_history.append(chat_entry)
             
-            if result.get('extracted_data'):
-                # Chart type selector in the Graph Output tab
-                col1, col2 = st.columns([1, 3])
-                
-                with col1:
-                    selected_chart_type = st.selectbox(
-                        "Select Graph Type",
-                        options=["bar", "pie", "line", "scatter"],
-                        index=["bar", "pie", "line", "scatter"].index(st.session_state.get('chart_type', 'bar')),
-                        key="chart_type_selector"
-                    )
-                
-                # Regenerate chart if type changed
-                if selected_chart_type != st.session_state.get('chart_type', 'bar'):
-                    st.session_state.chart_type = selected_chart_type
-                    # Recreate chart with new type
-                    client = AzureLLMClient(AZURE_ENDPOINT_URL, API_KEY)
-                    pipeline = AnalyticsPipeline(client)
-                    try:
-                        new_chart = pipeline.create_chart(result['extracted_data'], selected_chart_type)
-                        result['chart'] = new_chart
-                        st.session_state.result = result
-                    except Exception as e:
-                        st.error(f"Error creating chart: {str(e)}")
-                
-                # Display chart
-                if result.get('chart'):
-                    st.plotly_chart(result['chart'], use_container_width=True)
-                else:
-                    st.warning("⚠️ Unable to generate visualization. Please check your data format.")
-            else:
-                st.info("ℹ️ No structured data found in the response. The LLM may not have returned JSON format.")
-                st.markdown("**Tip:** Try rephrasing your query to explicitly request JSON format.")
+            # Clear the input
+            st.rerun()
 
 # Footer
 st.markdown("---")
