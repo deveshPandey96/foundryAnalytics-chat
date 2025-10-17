@@ -48,6 +48,10 @@ Thumbs.db
 
 # Logs
 *.log
+query_log.txt
+
+# Chat history persistence
+chat_history.json
 
 # Testing
 .pytest_cache/

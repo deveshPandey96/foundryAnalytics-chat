@@ -6,8 +6,10 @@ Interactive web interface for querying Azure LLM and visualizing responses.
 
 import streamlit as st
 from azure_llm_analytics_dev import AzureLLMClient, AnalyticsPipeline
+from chat_persistence import ChatPersistence, QueryLogger
 import json
 import re
+from datetime import datetime
 
 # Load configuration from config file
 try:
@@ -23,9 +25,21 @@ st.set_page_config(
     layout="wide"
 )
 
+# Initialize persistence and logging
+chat_persistence = ChatPersistence()
+query_logger = QueryLogger()
+
 # Initialize session state for chat history
 if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
+    # Try to load existing history from file
+    st.session_state.chat_history = chat_persistence.load_history()
+
+# Flag to track if history was loaded
+if 'history_loaded' not in st.session_state:
+    st.session_state.history_loaded = True
+    if st.session_state.chat_history:
+        # Show a subtle notification that history was loaded
+        st.session_state.show_restore_message = True
 
 # Custom CSS for chat-like interface
 st.markdown("""
@@ -67,13 +81,27 @@ st.markdown("""
 Professional analytics dashboard for querying Azure LLM and visualizing responses.
 """)
 
-# Sidebar for tips
+# Show restore message if history was loaded
+if st.session_state.get('show_restore_message', False):
+    st.success(f"✅ Chat history restored! Loaded {len(st.session_state.chat_history)} previous conversation(s).")
+    st.session_state.show_restore_message = False
+
+# Sidebar for tips and info
 st.sidebar.markdown("### 💡 Tips")
 st.sidebar.markdown("""
 - Always request JSON format in your queries
 - Specify the exact keys you want in the response
 - Use comparative queries for better visualizations
 - Try different graph types to visualize your data
+""")
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📝 Logging Info")
+st.sidebar.markdown(f"""
+- Chat history is automatically saved
+- Query log file: `query_log.txt`
+- History file: `chat_history.json`
+- Total conversations: {len(st.session_state.chat_history)}
 """)
 
 # Display chat history first
@@ -194,6 +222,8 @@ if clear_chat_button:
         del st.session_state.query_submitted
     if 'result' in st.session_state:
         del st.session_state.result
+    # Clear the persisted history file
+    chat_persistence.clear_history()
     st.rerun()
 
 # Helper function to extract readable text from LLM response
@@ -280,10 +310,20 @@ if submit_button:
             )
         
         if not result['success']:
-            st.error(f"❌ Error: {result.get('error', 'Unknown error')}")
+            error_msg = result.get('error', 'Unknown error')
+            st.error(f"❌ Error: {error_msg}")
+            
+            # Log the failed query
+            query_logger.log_query(
+                query=query,
+                response=error_msg,
+                extracted_data=None,
+                success=False
+            )
         else:
             # Extract readable text from response
             text_response = extract_readable_text(result)
+            raw_response = result.get('response', {}).get('raw_text', '')
             
             # Create chat entry
             chat_entry = {
@@ -293,11 +333,23 @@ if submit_button:
                 'chart': result.get('chart'),
                 'chart_type': 'bar',
                 'has_data': result.get('extracted_data') is not None,
-                'raw_response': result.get('response', {}).get('raw_text', '')
+                'raw_response': raw_response,
+                'timestamp': datetime.now().isoformat()
             }
             
             # Add to chat history
             st.session_state.chat_history.append(chat_entry)
+            
+            # Save chat history to file
+            chat_persistence.save_history(st.session_state.chat_history)
+            
+            # Log the query and response
+            query_logger.log_query(
+                query=query,
+                response=raw_response,
+                extracted_data=result.get('extracted_data'),
+                success=True
+            )
             
             # Clear the input
             st.rerun()
