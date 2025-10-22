@@ -7,6 +7,7 @@ Interactive web interface for querying Azure LLM and visualizing responses.
 import streamlit as st
 from azure_llm_analytics_dev import AzureLLMClient, AnalyticsPipeline
 from chat_persistence import ChatPersistence, QueryLogger
+from theme_manager import ThemeManager
 import json
 import re
 from datetime import datetime
@@ -41,39 +42,49 @@ if 'history_loaded' not in st.session_state:
         # Show a subtle notification that history was loaded
         st.session_state.show_restore_message = True
 
-# Custom CSS for chat-like interface
+# Initialize theme in session state
+if 'theme' not in st.session_state:
+    # The theme will be determined by the JavaScript on the client side
+    # Default to light for initial render
+    st.session_state.theme = 'light'
+
+# Get theme from query parameters (set by JavaScript on page load)
+query_params = st.query_params
+theme_from_query = query_params.get('theme', 'light')
+if isinstance(theme_from_query, list):
+    theme_from_query = theme_from_query[0]
+
+# Update session state theme if different
+if theme_from_query != st.session_state.theme:
+    st.session_state.theme = theme_from_query
+
+# Apply theme CSS
+current_theme = st.session_state.theme
+st.markdown(ThemeManager.get_theme_css(current_theme), unsafe_allow_html=True)
+
+# Add theme toggle JavaScript
+st.markdown(ThemeManager.get_theme_toggle_script(), unsafe_allow_html=True)
+
+# Additional JavaScript to sync theme from localStorage to URL on page load
 st.markdown("""
-<style>
-    /* Chat message styling */
-    .stChatMessage {
-        padding: 1rem;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-    }
-    
-    /* Main container */
-    .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    
-    /* Input box styling */
-    .stTextInput > div > div > input {
-        border-radius: 1.5rem;
-    }
-    
-    /* Button styling */
-    .stButton > button {
-        border-radius: 1.5rem;
-    }
-    
-    /* Make the conversation section scrollable */
-    .conversation-container {
-        max-height: 600px;
-        overflow-y: auto;
-    }
-</style>
+<script>
+    // Initialize theme from localStorage on first load
+    (function() {
+        const savedTheme = localStorage.getItem('streamlit_theme');
+        const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const initialTheme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+        
+        const url = new URL(window.location);
+        if (url.searchParams.get('theme') !== initialTheme) {
+            url.searchParams.set('theme', initialTheme);
+            window.location.href = url.toString();
+        }
+    })();
+</script>
 """, unsafe_allow_html=True)
+
+# Add theme toggle button
+st.markdown(ThemeManager.get_theme_toggle_button(current_theme), unsafe_allow_html=True)
 
 # Title and description
 st.title("📊 Azure LLM Analytics Dashboard")
