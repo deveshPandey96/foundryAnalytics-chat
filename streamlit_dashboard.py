@@ -7,6 +7,7 @@ Interactive web interface for querying Azure LLM and visualizing responses.
 import streamlit as st
 from azure_llm_analytics_dev import AzureLLMClient, AnalyticsPipeline
 from chat_persistence import ChatPersistence, QueryLogger
+from feedback_logger import FeedbackLogger
 import json
 import re
 from datetime import datetime
@@ -28,6 +29,7 @@ st.set_page_config(
 # Initialize persistence and logging
 chat_persistence = ChatPersistence()
 query_logger = QueryLogger()
+feedback_logger = FeedbackLogger()
 
 # Initialize session state for chat history
 if 'chat_history' not in st.session_state:
@@ -97,11 +99,17 @@ st.sidebar.markdown("""
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📝 Logging Info")
+
+# Get feedback stats
+feedback_stats = feedback_logger.get_feedback_stats()
+
 st.sidebar.markdown(f"""
 - Chat history is automatically saved
 - Query log file: `query_log.txt`
 - History file: `chat_history.json`
+- Feedback file: `feedback_log.json`
 - Total conversations: {len(st.session_state.chat_history)}
+- Feedback: 👍 {feedback_stats.get('positive', 0)} | 👎 {feedback_stats.get('negative', 0)}
 """)
 
 # Display chat history first
@@ -167,6 +175,78 @@ if st.session_state.chat_history:
                         st.plotly_chart(chat['chart'], use_container_width=True)
                     else:
                         st.info("ℹ️ No visualization available for this response.")
+            
+            # Feedback buttons (Thumbs Up / Thumbs Down)
+            st.markdown("---")
+            feedback_col1, feedback_col2, feedback_col3 = st.columns([1, 1, 10])
+            
+            with feedback_col1:
+                # Thumbs up button
+                thumbs_up_key = f"thumbs_up_{i}"
+                if st.button("👍", key=thumbs_up_key, help="This response is good"):
+                    # Log positive feedback silently
+                    feedback_logger.log_feedback(
+                        query=chat['query'],
+                        response=chat.get('raw_response', chat.get('text_response', '')),
+                        feedback_type="positive",
+                        extracted_data=chat.get('extracted_data'),
+                        metadata={
+                            "timestamp": chat.get('timestamp'),
+                            "chart_type": chat.get('chart_type'),
+                            "has_data": chat.get('has_data')
+                        }
+                    )
+                    st.success("✅ Thank you for your feedback!")
+            
+            with feedback_col2:
+                # Thumbs down button
+                thumbs_down_key = f"thumbs_down_{i}"
+                if st.button("👎", key=thumbs_down_key, help="This response needs improvement"):
+                    # Set a flag to show the dialog
+                    st.session_state[f'show_feedback_dialog_{i}'] = True
+            
+            # Show feedback dialog if thumbs down was clicked
+            if st.session_state.get(f'show_feedback_dialog_{i}', False):
+                with st.form(key=f"feedback_form_{i}"):
+                    st.markdown("**What should the correct or preferred answer be?**")
+                    preferred_answer = st.text_area(
+                        "Your preferred answer:",
+                        placeholder="Please describe what the correct or preferred answer should be...",
+                        key=f"preferred_answer_{i}",
+                        height=100
+                    )
+                    
+                    submit_col1, submit_col2 = st.columns([1, 5])
+                    with submit_col1:
+                        submit_feedback = st.form_submit_button("Submit", type="primary")
+                    with submit_col2:
+                        cancel_feedback = st.form_submit_button("Cancel")
+                    
+                    if submit_feedback:
+                        if preferred_answer.strip():
+                            # Log negative feedback with preferred answer
+                            feedback_logger.log_feedback(
+                                query=chat['query'],
+                                response=chat.get('raw_response', chat.get('text_response', '')),
+                                feedback_type="negative",
+                                extracted_data=chat.get('extracted_data'),
+                                preferred_answer=preferred_answer,
+                                metadata={
+                                    "timestamp": chat.get('timestamp'),
+                                    "chart_type": chat.get('chart_type'),
+                                    "has_data": chat.get('has_data')
+                                }
+                            )
+                            st.session_state[f'show_feedback_dialog_{i}'] = False
+                            st.success("✅ Thank you for your feedback!")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Please provide your preferred answer.")
+                    
+                    if cancel_feedback:
+                        st.session_state[f'show_feedback_dialog_{i}'] = False
+                        st.rerun()
+
 
     st.markdown("---")
 
