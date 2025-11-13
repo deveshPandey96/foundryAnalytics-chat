@@ -53,6 +53,9 @@ query_log.txt
 # Chat history persistence
 chat_history.json
 
+# Feedback logs
+feedback_log.json
+
 # Testing
 .pytest_cache/
 .coverage
