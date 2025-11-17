@@ -54,7 +54,7 @@ query_log.txt
 chat_history.json
 
 # Feedback logs
-feedback_log.json
+feedback_log.txt
 
 # Testing
 .pytest_cache/
