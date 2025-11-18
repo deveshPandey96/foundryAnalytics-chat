@@ -197,7 +197,9 @@ if st.session_state.chat_history:
                             "has_data": chat.get('has_data')
                         }
                     )
-                    st.success("✅ Thank you for your feedback!")
+                    # Set flag to show success message outside columns
+                    st.session_state[f'feedback_submitted_{i}'] = True
+                    st.rerun()
             
             with feedback_col2:
                 # Thumbs down button
@@ -205,6 +207,11 @@ if st.session_state.chat_history:
                 if st.button("👎", key=thumbs_down_key, help="This response needs improvement"):
                     # Set a flag to show the dialog
                     st.session_state[f'show_feedback_dialog_{i}'] = True
+            
+            # Show success message outside columns if feedback was submitted
+            if st.session_state.get(f'feedback_submitted_{i}', False):
+                st.success("✅ Thank you for your feedback!")
+                st.session_state[f'feedback_submitted_{i}'] = False
             
             # Show feedback dialog if thumbs down was clicked
             if st.session_state.get(f'show_feedback_dialog_{i}', False):
@@ -239,7 +246,8 @@ if st.session_state.chat_history:
                                 }
                             )
                             st.session_state[f'show_feedback_dialog_{i}'] = False
-                            st.success("✅ Thank you for your feedback!")
+                            # Set flag to show success message on next render
+                            st.session_state[f'feedback_submitted_{i}'] = True
                             st.rerun()
                         else:
                             st.warning("⚠️ Please provide your preferred answer.")
