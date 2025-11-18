@@ -36,6 +36,10 @@ if 'chat_history' not in st.session_state:
     # Try to load existing history from file
     st.session_state.chat_history = chat_persistence.load_history()
 
+# Initialize feedback confirmation state
+if 'show_feedback_confirmation' not in st.session_state:
+    st.session_state.show_feedback_confirmation = False
+
 # Flag to track if history was loaded
 if 'history_loaded' not in st.session_state:
     st.session_state.history_loaded = True
@@ -74,6 +78,71 @@ st.markdown("""
         max-height: 600px;
         overflow-y: auto;
     }
+    
+    /* Full-screen feedback confirmation overlay */
+    .feedback-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    .feedback-message {
+        background-color: white;
+        padding: 3rem 4rem;
+        border-radius: 1rem;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        text-align: center;
+        animation: scaleIn 0.3s ease-in-out;
+    }
+    
+    .feedback-message h1 {
+        font-size: 3rem;
+        margin: 0;
+        color: #28a745;
+    }
+    
+    .feedback-message p {
+        font-size: 1.5rem;
+        margin: 1rem 0 0 0;
+        color: #333;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+    
+    @keyframes scaleIn {
+        from {
+            transform: scale(0.8);
+            opacity: 0;
+        }
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes fadeOut {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -82,6 +151,31 @@ st.title("📊 Azure LLM Analytics Dashboard")
 st.markdown("""
 Professional analytics dashboard for querying Azure LLM and visualizing responses.
 """)
+
+# Show full-screen feedback confirmation if triggered
+if st.session_state.show_feedback_confirmation:
+    st.markdown("""
+    <div class="feedback-overlay" id="feedbackOverlay">
+        <div class="feedback-message">
+            <h1>✅</h1>
+            <p>Thank you for your feedback!</p>
+        </div>
+    </div>
+    <script>
+        // Auto-dismiss after 1.5 seconds
+        setTimeout(function() {
+            const overlay = document.getElementById('feedbackOverlay');
+            if (overlay) {
+                overlay.style.animation = 'fadeOut 0.3s ease-in-out';
+                setTimeout(function() {
+                    overlay.style.display = 'none';
+                }, 300);
+            }
+        }, 1500);
+    </script>
+    """, unsafe_allow_html=True)
+    # Reset the flag after displaying
+    st.session_state.show_feedback_confirmation = False
 
 # Show restore message if history was loaded
 if st.session_state.get('show_restore_message', False):
@@ -107,9 +201,10 @@ st.sidebar.markdown(f"""
 - Chat history is automatically saved
 - Query log file: `query_log.txt`
 - History file: `chat_history.json`
-- Feedback file: `feedback_log.txt`
+- Positive feedback: `positive_feedback_log.txt`
+- Negative feedback: `negative_feedback_log.txt`
 - Total conversations: {len(st.session_state.chat_history)}
-- Total feedback: {feedback_stats.get('total', 0)}
+- Total feedback: {feedback_stats.get('total', 0)} ({feedback_stats.get('positive', 0)} positive, {feedback_stats.get('negative', 0)} negative)
 """)
 
 # Display chat history first
@@ -196,7 +291,9 @@ if st.session_state.chat_history:
                             "has_data": chat.get('has_data')
                         }
                     )
-                    st.success("✅ Thank you for your feedback!")
+                    # Show full-screen confirmation
+                    st.session_state.show_feedback_confirmation = True
+                    st.rerun()
             
             with feedback_col2:
                 # Thumbs down button
@@ -238,7 +335,8 @@ if st.session_state.chat_history:
                                 }
                             )
                             st.session_state[f'show_feedback_dialog_{i}'] = False
-                            st.success("✅ Thank you for your feedback!")
+                            # Show full-screen confirmation
+                            st.session_state.show_feedback_confirmation = True
                             st.rerun()
                         else:
                             st.warning("⚠️ Please provide your preferred answer.")
