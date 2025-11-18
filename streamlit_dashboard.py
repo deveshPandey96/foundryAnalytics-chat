@@ -107,9 +107,10 @@ st.sidebar.markdown(f"""
 - Chat history is automatically saved
 - Query log file: `query_log.txt`
 - History file: `chat_history.json`
-- Feedback file: `feedback_log.txt`
+- Positive feedback file: `positive_feedback_log.txt`
+- Negative feedback file: `negative_feedback_log.txt`
 - Total conversations: {len(st.session_state.chat_history)}
-- Total feedback: {feedback_stats.get('total', 0)}
+- Total feedback: {feedback_stats.get('total', 0)} ({feedback_stats.get('positive', 0)} positive, {feedback_stats.get('negative', 0)} negative)
 """)
 
 # Display chat history first
