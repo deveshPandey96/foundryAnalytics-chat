@@ -14,14 +14,20 @@ from typing import Dict, Any, Optional
 class FeedbackLogger:
     """Handles logging of user feedback for LLM responses."""
     
-    def __init__(self, feedback_file: str = "feedback_log.txt"):
+    def __init__(
+        self, 
+        positive_feedback_file: str = "positive_feedback_log.txt",
+        negative_feedback_file: str = "negative_feedback_log.txt"
+    ):
         """
         Initialize feedback logger.
         
         Args:
-            feedback_file: Path to the feedback log file
+            positive_feedback_file: Path to the positive feedback log file
+            negative_feedback_file: Path to the negative feedback log file
         """
-        self.feedback_file = feedback_file
+        self.positive_feedback_file = positive_feedback_file
+        self.negative_feedback_file = negative_feedback_file
     
     def log_feedback(
         self, 
@@ -59,8 +65,14 @@ class FeedbackLogger:
             # Format the log entry
             log_entry = self._format_log_entry(timestamp, query, response_text)
             
-            # Append to file
-            with open(self.feedback_file, 'a', encoding='utf-8') as f:
+            # Determine which file to write to based on feedback type
+            feedback_file = (
+                self.positive_feedback_file if feedback_type == "positive" 
+                else self.negative_feedback_file
+            )
+            
+            # Append to the appropriate file
+            with open(feedback_file, 'a', encoding='utf-8') as f:
                 f.write(log_entry)
             
             return True
@@ -90,19 +102,22 @@ class FeedbackLogger:
         entry += f"{separator}\n\n"
         return entry
     
-    def _load_feedback(self) -> list:
+    def _load_feedback(self, feedback_file: str) -> list:
         """
         Load existing feedback from file.
         
+        Args:
+            feedback_file: Path to the feedback file to load
+            
         Returns:
             List of feedback entries parsed from TXT format
         """
-        if not os.path.exists(self.feedback_file):
+        if not os.path.exists(feedback_file):
             return []
         
         try:
             feedback_entries = []
-            with open(self.feedback_file, 'r', encoding='utf-8') as f:
+            with open(feedback_file, 'r', encoding='utf-8') as f:
                 content = f.read()
             
             # Split by separator lines
@@ -152,23 +167,25 @@ class FeedbackLogger:
         Returns:
             Dictionary with feedback counts
         """
-        feedback_entries = self._load_feedback()
+        positive_entries = self._load_feedback(self.positive_feedback_file)
+        negative_entries = self._load_feedback(self.negative_feedback_file)
         
-        # In the new TXT format, we don't distinguish between positive/negative
-        # All logged entries are counted as total feedback
         stats = {
-            "total": len(feedback_entries),
-            "positive": 0,  # Not tracked in new format
-            "negative": 0   # Not tracked in new format
+            "total": len(positive_entries) + len(negative_entries),
+            "positive": len(positive_entries),
+            "negative": len(negative_entries)
         }
         
         return stats
     
-    def get_feedback_path(self) -> str:
+    def get_feedback_path(self) -> Dict[str, str]:
         """
-        Get the absolute path to the feedback file.
+        Get the absolute paths to the feedback files.
         
         Returns:
-            Absolute path to feedback file
+            Dictionary with paths to positive and negative feedback files
         """
-        return os.path.abspath(self.feedback_file)
+        return {
+            "positive": os.path.abspath(self.positive_feedback_file),
+            "negative": os.path.abspath(self.negative_feedback_file)
+        }
